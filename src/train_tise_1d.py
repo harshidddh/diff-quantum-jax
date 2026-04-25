@@ -7,8 +7,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from model import QuantumWaveFunction
-from physics import variational_loss, double_well_potential
+from model_tise_1d import QuantumWaveFunction
+from physics_tise_1d import variational_loss, double_well_potential
 
 
 def train_state(key_seed, is_odd, state_name, epochs=1500):

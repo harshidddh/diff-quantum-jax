@@ -20,7 +20,7 @@ def main():
     print("Initializing Spacetime Meshgrid...")
     # Space: -6 to 6. Time: 0 to 1.0 seconds
     x_coords = jnp.linspace(-6.0, 6.0, 200)
-    t_coords = jnp.linspace(0.0, 1.0, 50)
+    t_coords = jnp.linspace(0.0, 2.5, 80)
 
     # Create the Spacetime Collocation Points (flattened grid)
     T, X = jnp.meshgrid(t_coords, x_coords)
@@ -44,7 +44,7 @@ def main():
         m = eqx.apply_updates(m, updates)
         return m, o_s, loss
 
-    epochs = 2000
+    epochs = 6000
     print("\n--- Training Quantum Dynamics (TDSE) ---")
     for epoch in range(epochs):
         model, opt_state, loss = step(model, opt_state, t_collocation, x_collocation, x_initial)
@@ -56,7 +56,7 @@ def main():
     # --- Plotting the Dynamics (Time Snapshots) ---
     print("\nGenerating Quantum Tunneling Snapshots...")
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-    time_snapshots = [0.0, 0.5, 1.0]
+    time_snapshots = [0.0, 1.25, 2.5]
 
     V_x = gaussian_barrier(x_initial)
 
