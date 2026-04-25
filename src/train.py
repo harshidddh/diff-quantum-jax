@@ -2,80 +2,82 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import optax
+import matplotlib
+
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 from model import QuantumWaveFunction
-from physics import variational_loss
+from physics import variational_loss, double_well_potential
 
 
-def analytical_ground_state(x):
-    # The exact theoretical quantum mechanical solution
-    return (1.0 / jnp.pi) ** 0.25 * jnp.exp(-0.5 * x ** 2)
+def train_state(key_seed, x_grid, potential_fn, state_name, epochs=1500, ground_model=None):
+    key = jax.random.PRNGKey(key_seed)
+    model = QuantumWaveFunction(key)
+
+    optimizer = optax.adam(learning_rate=2e-3)
+    opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
+
+    @eqx.filter_jit
+    def step(m, o_s, grid):
+        # We pass the potential_fn and ground_model into the loss
+        loss, grads = eqx.filter_value_and_grad(variational_loss)(m, grid, potential_fn, ground_model)
+        updates, o_s = optimizer.update(grads, o_s, m)
+        m = eqx.apply_updates(m, updates)
+        return m, o_s, loss
+
+    print(f"\n--- Optimizing {state_name} ---")
+    for epoch in range(epochs):
+        model, opt_state, loss = step(model, opt_state, x_grid)
+        if epoch % 200 == 0:
+            print(f"Epoch {epoch:04d} | Energy Loss: {loss:.5f}")
+
+    print(f"Final {state_name} Energy: {loss:.5f}")
+    return model
 
 
 def main():
-    # 1. Initialize Model and Optimizer
-    key = jax.random.PRNGKey(42)
-    model = QuantumWaveFunction(key)
+    x_grid = jnp.linspace(-6.0, 6.0, 1500)
 
-    # Optax Adam optimizer
-    learning_rate = 1e-3
-    optimizer = optax.adam(learning_rate)
-    opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
+    # 1. Train Ground State (psi_0)
+    ground_model = train_state(42, x_grid, double_well_potential, "Ground State")
 
-    # 2. Define the computational grid (integration domain)
-    x_grid = jnp.linspace(-5.0, 5.0, 1000)
+    # 2. Train First Excited State (psi_1) using psi_0 as a penalty constraint
+    excited_model = train_state(99, x_grid, double_well_potential, "1st Excited State", ground_model=ground_model)
 
-    # 3. JIT-compiled training step
-    @eqx.filter_jit
-    def step(model, opt_state, grid):
-        # Calculate loss and exact gradients simultaneously
-        loss, grads = eqx.filter_value_and_grad(variational_loss)(model, grid)
+    # 3. Visualization
+    print("\nGenerating comprehensive quantum state plot...")
+    vmap_ground = jax.vmap(ground_model)
+    vmap_excited = jax.vmap(excited_model)
+    vmap_pot = jax.vmap(double_well_potential)
 
-        # Apply gradients
-        updates, opt_state = optimizer.update(grads, opt_state, model)
-        model = eqx.apply_updates(model, updates)
+    psi_0 = vmap_ground(x_grid)
+    psi_1 = vmap_excited(x_grid)
+    V_x = vmap_pot(x_grid)
 
-        return model, opt_state, loss
+    # Normalize
+    psi_0 /= jnp.sqrt(jnp.trapezoid(psi_0 ** 2, x=x_grid))
+    psi_1 /= jnp.sqrt(jnp.trapezoid(psi_1 ** 2, x=x_grid))
 
-    # 4. Training Loop
-    epochs = 1000  # 1000 iterations for clean convergence
-    print("Initiating PINN Optimization (Target Energy: E = 0.500)")
+    plt.figure(figsize=(12, 7))
+    plt.plot(x_grid, V_x, 'k:', alpha=0.6, linewidth=2, label=r"Double-Well Potential $V(x)$")
 
-    for epoch in range(epochs):
-        model, opt_state, loss = step(model, opt_state, x_grid)
+    # We shift the wavefunctions up by their approximate energy eigenvalues for proper quantum plotting
+    plt.plot(x_grid, psi_0 ** 2 + 0.3, 'b-', linewidth=2.5, label=r"Ground State $|\psi_0|^2$")
+    plt.plot(x_grid, psi_1 ** 2 + 1.2, 'r-', linewidth=2.5, label=r"1st Excited State $|\psi_1|^2$")
 
-        if epoch % 100 == 0:
-            print(f"Epoch {epoch:04d} | Variational Energy: {loss:.5f}")
-
-    print(f"Final Variational Energy: {loss:.5f}")
-
-    # 5. Validation Plotting
-    print("Generating analytical validation plot...")
-    vmap_model = jax.vmap(model)
-    psi_pinn = vmap_model(x_grid)
-
-    # Normalize the PINN wavefunction
-    psi_pinn_normalized = psi_pinn / jnp.sqrt(jnp.trapezoid(psi_pinn ** 2, x=x_grid))
-    psi_exact = analytical_ground_state(x_grid)
-
-    # Plot Probability Densities |psi|^2
-    plt.figure(figsize=(10, 6))
-
-    # Notice the 'r' before the string quotes here!
-    plt.plot(x_grid, psi_exact ** 2, 'k--', linewidth=2, label=r"Analytical Truth $|\psi_0|^2$")
-    plt.plot(x_grid, psi_pinn_normalized ** 2, 'r-', linewidth=2, alpha=0.8,
-             label=r"PINN Approximation $|\psi_\theta|^2$")
-
-    # Plot the potential V(x) for context (scaled down for visual clarity)
-    V_x = 0.5 * x_grid ** 2
-    plt.plot(x_grid, V_x * 0.1, 'gray', linestyle=':', label=r"Potential $V(x)$ (scaled)")
-
-    plt.title("Quantum Harmonic Oscillator: Ground State Discovery via PINN")
+    plt.title("Physics-Informed Neural Network: Double-Well Quantum States")
     plt.xlabel(r"Position $x$")
-    plt.ylabel(r"Probability Density $|\psi(x)|^2$")
-    plt.legend()
+    plt.ylabel(r"Energy Level & Probability Density")
+    plt.ylim(-0.2, 3.0)
+    plt.legend(loc='upper center')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+
+    plt.savefig("double_well_states.png", dpi=300, bbox_inches='tight')
+    plt.close()
+    print("Plot successfully saved as double_well_states.png!")
+
 
 if __name__ == "__main__":
     main()
