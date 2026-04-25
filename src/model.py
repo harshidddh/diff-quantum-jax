@@ -5,7 +5,7 @@ import equinox as eqx
 
 class QuantumWaveFunction(eqx.Module):
     mlp: eqx.nn.MLP
-    is_odd: bool  # Flag to enforce physical symmetry
+    is_odd: bool
 
     def __init__(self, key, is_odd=False):
         self.mlp = eqx.nn.MLP(
@@ -13,19 +13,20 @@ class QuantumWaveFunction(eqx.Module):
             activation=jax.nn.gelu, key=key
         )
         self.is_odd = is_odd
+        # Debug print to terminal
+        print(f"DEBUG: Initialized model with is_odd={self.is_odd}")
 
     def __call__(self, x):
-        # Evaluate the network at x and -x
+        # Force x to be a float for jax.grad
+        x = jnp.array(x).reshape()
+
         val_pos = self.mlp(jnp.array([x]))[0]
         val_neg = self.mlp(jnp.array([-x]))[0]
 
-        # Wider envelope for the double-well
         envelope = jnp.exp(-0.2 * x ** 2)
 
-        # Apply hard topological constraints
         if self.is_odd:
-            # Forced Antisymmetric (Odd) Function: f(x) = -f(-x) -> guaranteed 0 at x=0
+            # This MUST produce 0 at x=0: (f(0) - f(-0)) = 0
             return (val_pos - val_neg) * envelope
         else:
-            # Forced Symmetric (Even) Function: f(x) = f(-x)
             return (val_pos + val_neg) * envelope

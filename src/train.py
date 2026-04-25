@@ -40,6 +40,11 @@ x_grid = jnp.linspace(-6.0, 6.0, 1500)
 
 
 def main():
+    x_grid = jnp.linspace(-6.0, 6.0, 1500)
+
+    # Check these lines carefully!
+    ground_model = train_state(42, is_odd=False, state_name="Ground State")
+    excited_model = train_state(99, is_odd=True, state_name="1st Excited State")
     # 1. Train Ground State (Even Symmetry)
     ground_model = train_state(42, is_odd=False, state_name="Ground State")
 
