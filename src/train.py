@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import optax
 import matplotlib.pyplot as plt
-from model import QuantumWavefunction
+from model import QuantumWaveFunction
 from physics import variational_loss
 
 
@@ -15,7 +15,7 @@ def analytical_ground_state(x):
 def main():
     # 1. Initialize Model and Optimizer
     key = jax.random.PRNGKey(42)
-    model = QuantumWavefunction(key)
+    model = QuantumWaveFunction(key)
 
     # Optax Adam optimizer
     learning_rate = 1e-3
@@ -55,30 +55,27 @@ def main():
     psi_pinn = vmap_model(x_grid)
 
     # Normalize the PINN wavefunction
-    psi_pinn_normalized = psi_pinn / jnp.sqrt(jnp.trapz(psi_pinn ** 2, x=x_grid))
+    psi_pinn_normalized = psi_pinn / jnp.sqrt(jnp.trapezoid(psi_pinn ** 2, x=x_grid))
     psi_exact = analytical_ground_state(x_grid)
 
     # Plot Probability Densities |psi|^2
     plt.figure(figsize=(10, 6))
-    plt.plot(x_grid, psi_exact ** 2, 'k--', linewidth=2, label="Analytical Truth $|\psi_0|^2$")
+
+    # Notice the 'r' before the string quotes here!
+    plt.plot(x_grid, psi_exact ** 2, 'k--', linewidth=2, label=r"Analytical Truth $|\psi_0|^2$")
     plt.plot(x_grid, psi_pinn_normalized ** 2, 'r-', linewidth=2, alpha=0.8,
-             label="PINN Approximation $|\psi_\\theta|^2$")
+             label=r"PINN Approximation $|\psi_\theta|^2$")
 
     # Plot the potential V(x) for context (scaled down for visual clarity)
     V_x = 0.5 * x_grid ** 2
-    plt.plot(x_grid, V_x * 0.1, 'gray', linestyle=':', label="Potential $V(x)$ (scaled)")
+    plt.plot(x_grid, V_x * 0.1, 'gray', linestyle=':', label=r"Potential $V(x)$ (scaled)")
 
     plt.title("Quantum Harmonic Oscillator: Ground State Discovery via PINN")
-    plt.xlabel("Position $x$")
-    plt.ylabel("Probability Density $|\psi(x)|^2$")
+    plt.xlabel(r"Position $x$")
+    plt.ylabel(r"Probability Density $|\psi(x)|^2$")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-
-    # Save and show
-    plt.savefig("qho_result.png", dpi=300)
-    plt.show()
-
 
 if __name__ == "__main__":
     main()

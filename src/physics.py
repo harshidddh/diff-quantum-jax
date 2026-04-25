@@ -30,10 +30,10 @@ def variational_loss(model, x_grid):
     H_psi = kinetic_vals + (potential_vals * psi_vals)
 
     # Expectation value: <psi|H|psi>
-    expected_energy = jnp.trapz(psi_vals * H_psi, x=x_grid)
+    expected_energy = jnp.trapezoid(psi_vals * H_psi, x=x_grid)
 
     # Normalization factor: <psi|psi>
-    norm_factor = jnp.trapz(psi_vals ** 2, x=x_grid)
+    norm_factor = jnp.trapezoidz(psi_vals ** 2, x=x_grid)
 
     # The variational energy E (this is what the optimizer will minimize)
     return expected_energy / norm_factor
